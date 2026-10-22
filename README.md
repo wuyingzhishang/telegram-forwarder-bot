@@ -24,6 +24,12 @@ bash deploy.sh
 
 仪表盘默认只监听 VPS 本机，脚本会显示 SSH 隧道命令，用它在本地安全访问 `http://127.0.0.1:8080`。Bot 与仪表盘共享 Docker 命名卷 `relay-data`，容器更新不会清除数据。查看状态和日志：
 
+如需通过自己的域名公开访问仪表盘，可按[部署文档](docs/DEPLOYMENT.md#使用-nginx-和-https-公开访问)配置 Nginx 反向代理、HTTPS 证书和防火墙。
+
+没有域名时，推荐继续使用部署脚本提供的 SSH 隧道访问；不要通过未加密的 HTTP 将登录页直接公开到公网。
+
+停止服务或彻底卸载（含数据删除）的步骤也见[部署文档](docs/DEPLOYMENT.md#停止或卸载项目)。
+
 ```bash
 docker compose -f compose.yaml ps
 docker compose -f compose.yaml logs -f bot dashboard

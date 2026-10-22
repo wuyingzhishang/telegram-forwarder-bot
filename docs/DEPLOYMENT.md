@@ -34,6 +34,102 @@ docker compose -f compose.yaml up -d --build
 
 如果通过 HTTPS 域名访问仪表盘，可将完整地址填入 `DASHBOARD_URL`，管理员 `/start` 菜单会显示仪表盘按钮。
 
+### 使用 Nginx 和 HTTPS 公开访问
+
+以下步骤适用于 Ubuntu/Debian VPS。先在域名 DNS 中将 `A` 记录指向 VPS 的公网 IPv4 地址；如果配置了 `AAAA` 记录，也要确保 VPS 的 IPv6 可用。仪表盘容器继续绑定 `127.0.0.1:8080`，公网只开放 SSH、HTTP 和 HTTPS。
+
+选择访问方式时：有域名就用本节的 Nginx + HTTPS；暂时没有域名时，建议通过 SSH 隧道访问本机的 `127.0.0.1:8080`。不要把仪表盘以纯 HTTP 直接暴露到公网：登录密码和页面内容会以未加密形式传输。VPS 内临时调试可使用本机 SSH 隧道，无需把 Compose 端口改绑到公网地址。
+
+安装 Nginx 和 Certbot：
+
+```bash
+sudo apt update
+sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+将下面配置保存为 `/etc/nginx/sites-available/telegram-forwarder`，把 `我的域名.com` 替换成实际域名。先用此 HTTP 配置让 Certbot 验证域名并签发证书：
+
+```nginx
+server {
+    listen 80;
+    listen [::]:80;
+    server_name 我的域名.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+启用配置并检查 Nginx：
+
+```bash
+sudo ln -s /etc/nginx/sites-available/telegram-forwarder /etc/nginx/sites-enabled/telegram-forwarder
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+确认域名已解析到 VPS，且公网可以访问 80 端口后，使用域名签发证书，并让 Certbot 配置 HTTPS 和 HTTP 到 HTTPS 跳转：
+
+```bash
+sudo certbot --nginx --redirect -d 我的域名.com
+```
+
+签发后，Nginx 的 HTTPS 虚拟主机应包含以下代理配置。Certbot 通常会自动添加 `listen 443 ssl`、证书路径和 80 端口跳转；如果需要手动核对，HTTPS `server` 块可按下例设置（证书路径中的域名也要替换）：
+
+```nginx
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name 我的域名.com;
+
+    ssl_certificate /etc/letsencrypt/live/我的域名.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/我的域名.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+SSH 登录 VPS 后，先进入项目目录；把 `/path/to/telegram-forwarder-bot` 换成实际路径。编辑 `.env`，将 `DASHBOARD_URL` 设为 `https://我的域名.com`，然后重启 Bot，让 Telegram 管理菜单显示正确的仪表盘地址：
+
+```bash
+cd /path/to/telegram-forwarder-bot
+sudo nano .env
+docker compose -f compose.yaml up -d
+```
+
+放行 SSH、HTTP、HTTPS，并删除曾经创建的 8080 公网放行规则：
+
+```bash
+sudo ufw allow OpenSSH
+sudo ufw allow 'Nginx Full'
+sudo ufw status numbered
+```
+
+如果状态里有 8080 的 `ALLOW` 规则，按编号删除（每条规则执行一次；删除后编号可能变化，因此每次先重新查看状态）：
+
+```bash
+sudo ufw delete <规则编号>
+```
+
+`Nginx Full` 会放行 TCP 80 和 443。只需要向公网开放这两个 Web 端口以及 SSH 端口（通常是 TCP 22；若 SSH 改过端口，应放行实际 SSH 端口）。Docker Compose 发布的 `127.0.0.1:8080:8080` 继续保持原样，无需也不应改为 `0.0.0.0`。Certbot 自动续期可用以下命令测试：
+
+```bash
+sudo certbot renew --dry-run
+```
+
 常用运维命令：
 
 ```bash
@@ -44,6 +140,52 @@ docker compose -f compose.yaml down
 ```
 
 `docker compose down` 不会删除数据卷。只有显式删除 `relay-data` 卷才会清除频道配置和仪表盘活动记录。
+
+### 停止或卸载项目
+
+先 SSH 登录 VPS，并进入项目目录：
+
+```bash
+cd /path/to/telegram-forwarder-bot
+```
+
+只想暂时停止服务、以后可能继续使用时，停止并移除容器即可。Docker 命名卷和 `.env` 配置会保留：
+
+```bash
+docker compose -f compose.yaml down
+```
+
+确定永久卸载且要删除项目数据时，先移除 Nginx 站点并重载 Nginx，再删除 Compose 容器和命名卷：
+
+```bash
+sudo rm /etc/nginx/sites-enabled/telegram-forwarder
+sudo nginx -t
+sudo systemctl reload nginx
+docker compose -f compose.yaml --profile user-session down --volumes --remove-orphans
+```
+
+`--volumes` 会永久删除本项目的 SQLite 数据和 Telegram 用户会话登录态。确定不再需要后，再删除项目目录（请核对路径，避免误删其他文件）：
+
+```bash
+cd ~
+rm -rf /path/to/telegram-forwarder-bot
+```
+
+如果该域名不再使用，也可以删除 Certbot 证书；若同一张证书还服务其他站点，请勿删除：
+
+```bash
+sudo certbot certificates
+sudo certbot delete --cert-name 我的域名.com
+```
+
+只有这台 VPS 没有其他网站需要 Nginx 的 HTTP/HTTPS 规则时，才删除 UFW 的 `Nginx Full` 规则：
+
+```bash
+sudo ufw status numbered
+sudo ufw delete allow 'Nginx Full'
+```
+
+不要为卸载这个项目而删除 Docker、关闭 UFW 或移除 SSH 放行规则；这些服务和规则可能被 VPS 上的其他项目使用。永久卸载后，建议在 Telegram 的 `@BotFather` 中撤销该机器人的 Token；若曾登录个人 Telegram 用户会话，也可在 Telegram「设置 → 设备」中终止对应会话。
 
 ## 用户账号来源与消息链接
 
