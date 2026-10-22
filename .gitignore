@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+compose.override.yaml
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.sqlite3
+*.db
+*.session
+*.session-journal
+data/
+dist/
+build/
+*.egg-info/

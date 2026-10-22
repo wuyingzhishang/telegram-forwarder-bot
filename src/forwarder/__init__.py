@@ -1,0 +1,1 @@
+"""Telegram forwarding bot MVP."""

@@ -1,0 +1,69 @@
+name: telegram-forwarder
+
+services:
+  bot:
+    build: .
+    command: ["python", "-m", "forwarder"]
+    restart: unless-stopped
+    init: true
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:?Set BOT_TOKEN in .env}
+      ADMIN_IDS: ${ADMIN_IDS:?Set ADMIN_IDS in .env}
+      DASHBOARD_URL: ${DASHBOARD_URL:-}
+      DATABASE_PATH: /data/forwarder.sqlite3
+      USER_SESSION_ENABLED: ${USER_SESSION_ENABLED:-0}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - relay-data:/data
+
+  dashboard:
+    build: .
+    command: ["uvicorn", "forwarder.dashboard:app", "--host", "0.0.0.0", "--port", "8080"]
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_PATH: /data/forwarder.sqlite3
+      ADMIN_IDS: ${ADMIN_IDS:?Set ADMIN_IDS in .env}
+      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:?Set DASHBOARD_USERNAME in .env}
+      USER_SESSION_ENABLED: ${USER_SESSION_ENABLED:-0}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?Set DASHBOARD_PASSWORD in .env}
+    volumes:
+      - relay-data:/data
+    ports:
+      - "${DASHBOARD_BIND:-127.0.0.1}:${DASHBOARD_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["cloudflare"]
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN:-}"]
+    restart: unless-stopped
+    depends_on:
+      dashboard:
+        condition: service_healthy
+
+  user-session:
+    build: .
+    profiles: ["user-session"]
+    command: ["python", "-m", "forwarder.user_session"]
+    restart: unless-stopped
+    init: true
+    environment:
+      API_ID: ${API_ID:-}
+      API_HASH: ${API_HASH:-}
+      BOT_TOKEN: ${BOT_TOKEN:?Set BOT_TOKEN in .env}
+      DATABASE_PATH: /data/forwarder.sqlite3
+      USER_SESSION_PATH: /session/forwarder
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - relay-data:/data
+      - user-session-data:/session
+
+volumes:
+  relay-data:
+  user-session-data:

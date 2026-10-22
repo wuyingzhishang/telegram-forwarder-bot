@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Relay · 转发工作台</title>
+    <link rel="stylesheet" href="/assets/dashboard.css">
+    <script>
+      const cleanUrl = new URL(location.href);
+      if (cleanUrl.username || cleanUrl.password) {
+        cleanUrl.username = '';
+        cleanUrl.password = '';
+        history.replaceState(null, '', cleanUrl.href);
+      }
+    </script>
+    <script src="/assets/dashboard.js" defer></script>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <a class="brand" href="#overview" aria-label="Relay Console 概览">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span class="brand-copy"><strong>relay</strong><small>CONTROL ROOM</small></span>
+        </a>
+        <div class="nav-caption">工作区</div>
+        <nav class="main-nav" aria-label="主导航">
+          <button class="nav-item active" type="button" data-view-link="overview"><span class="nav-glyph">01</span><span>开始转发</span></button>
+          <button class="nav-item" type="button" data-view-link="manual"><span class="nav-glyph">02</span><span>普通转发规则</span></button>
+          <button class="nav-item" type="button" data-view-link="activity"><span class="nav-glyph">03</span><span>活动记录</span><span class="nav-count" id="nav-activity-count">0</span></button>
+          <button class="nav-item" type="button" data-view-link="targets"><span class="nav-glyph">04</span><span>频道目标</span></button>
+          <button class="nav-item" type="button" data-view-link="rules"><span class="nav-glyph">05</span><span>自动监听规则</span></button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="system-label"><span class="system-dot" id="sidebar-dot"></span><span id="sidebar-state">正在连接</span></div>
+          <div class="sidebar-foot"><span>TELEGRAM RELAY</span><span>v0.1</span></div>
+        </div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <div class="crumb"><span>RELAY</span><i>/</i><strong id="breadcrumb-title">总览</strong></div>
+          <div class="topbar-right"><span class="updated-label" id="updated-label">等待数据</span><button class="refresh-button" id="refresh-button" type="button"><span class="refresh-glyph" aria-hidden="true">↻</span>刷新</button><span class="avatar" aria-label="管理员">A</span></div>
+        </header>
+
+        <div class="page-wrap">
+          <div class="inline-error" id="connection-error" role="alert" hidden></div><section class="view active" id="view-overview" data-view="overview">
+            <div class="page-heading">
+              <div><div class="eyebrow">MONITORING / 01</div><h1>转发工作台</h1></div>
+              <div class="heading-date" id="heading-date"></div>
+            </div>
+
+            <section class="publish-panel panel" aria-labelledby="publish-title">
+              <div class="publish-heading"><div><div class="eyebrow">开始转发</div><h2 id="publish-title">先选账号，再把消息交给机器人</h2><p>网页设置与 Telegram 共用。普通转发无需填写来源 ID。</p></div><span class="duration-badge">默认有效期 30 天</span></div>
+              <div id="publishing-error" class="inline-error" role="alert" hidden></div>
+              <div class="manual-mode-banner"><div><strong id="manual-mode-title">正在读取普通转发模式…</strong><p id="manual-mode-detail">可将消息筛选、内容处理、发布账号和目标保存为专用规则。</p></div><button class="primary-button" type="button" data-view-link="manual">配置普通转发规则</button></div>
+              <div class="publish-steps">
+                <section><h3><span>1</span>选择发布账号</h3><div class="account-options" role="group" aria-label="默认发布账号">
+                  <button type="button" class="account-option" data-account="bot" disabled aria-pressed="false"><b>机器人账号</b><small>以机器人的身份发布</small><span class="account-check" aria-hidden="true">✓</span></button>
+                  <button type="button" class="account-option" data-account="user" disabled aria-pressed="false"><b>个人 Telegram 账号</b><small id="personal-status">正在检查登录状态…</small><span class="account-check" aria-hidden="true">✓</span></button>
+                </div><p id="account-expiry" class="setting-detail" aria-live="polite">正在读取默认账号…</p><button class="text-button" type="button" id="clear-account" disabled>清除默认账号</button></section>
+                <section><h3><span>2</span>设置默认目标</h3><form id="publishing-target-form"><label for="publishing-target">转发到哪个频道？</label><select id="publishing-target" disabled><option value="">每次选择目标</option></select><button class="secondary-button" type="submit" disabled>保存目标</button></form><p class="setting-detail">设置后，新提交的消息会自动发送到此目标；选“每次选择”可逐次确认。</p><button class="text-button" type="button" data-view-link="targets">管理目标频道 →</button></section>
+                <section><h3><span>3</span>在 Telegram 中发送</h3><p class="publish-instruction">打开机器人，发送 <code>/start</code>，然后转发消息或发送图片、相册。</p><p class="setting-detail" id="publish-ready">选好账号后，即可开始。到期会提醒重新选择。</p><div class="workflow-actions"><button type="button" class="secondary-button" data-view-link="rules">配置自动转发</button><button type="button" class="text-button" data-view-link="activity">查看发送记录 →</button></div></section>
+              </div><p class="settings-owner" id="settings-owner"></p>
+            </section>
+            <section class="live-strip" aria-live="polite">
+              <div class="live-main"><span class="pulse-dot" id="live-dot"></span><div><strong id="bot-state">检查机器人状态</strong><span id="bot-detail">正在读取运行心跳</span></div></div>
+              <div class="live-side"><span class="live-kicker">LAST HEARTBEAT</span><strong id="last-heartbeat">--</strong></div>
+              <div class="live-side live-side-wide"><span class="live-kicker">SERVICE</span><strong>Telegram Bot API</strong></div>
+              <span class="strip-corner" aria-hidden="true">R</span>
+            </section>
+
+            <div class="metric-grid">
+              <article class="metric-card metric-orange"><div class="metric-top"><span>成功转发</span><span class="metric-index">24H / 01</span></div><div class="metric-value" id="metric-success">--</div><div class="metric-foot"><span class="mini-mark mark-orange"></span><span>过去 24 小时</span></div></article>
+              <article class="metric-card"><div class="metric-top"><span>发送失败</span><span class="metric-index">24H / 02</span></div><div class="metric-value" id="metric-failed">--</div><div class="metric-foot"><span class="mini-mark mark-red"></span><span>过去 24 小时</span></div></article>
+              <article class="metric-card"><div class="metric-top"><span>转发目标</span><span class="metric-index">CHANNEL / 03</span></div><div class="metric-value" id="metric-targets">--</div><div class="metric-foot"><span class="mini-mark mark-green"></span><span>已保存频道</span></div></article>
+              <article class="metric-card"><div class="metric-top"><span>运行状态</span><span class="metric-index">BOT / 04</span></div><div class="metric-value metric-state" id="metric-status">--</div><div class="metric-foot"><span class="mini-mark mark-green" id="metric-status-mark"></span><span id="metric-status-foot">最近心跳</span></div></article>
+            </div>
+
+            <div class="content-grid">
+              <section class="panel chart-panel">
+                <div class="panel-heading"><div><div class="eyebrow">DELIVERY VOLUME</div><h2>转发趋势</h2></div><div class="chart-legend"><span><i class="legend-success"></i>成功</span><span><i class="legend-failed"></i>失败</span></div></div>
+                <div class="chart-summary"><strong id="week-total">0</strong><span>近 7 日转发条目</span><span class="chart-period">最近 7 天 <b>⌄</b></span></div>
+                <div class="bar-chart" id="bar-chart" role="img" aria-label="最近七天转发趋势"></div>
+              </section>
+              <section class="panel target-panel">
+                <div class="panel-heading"><div><div class="eyebrow">DESTINATIONS</div><h2>频道目标</h2></div><button class="text-button" type="button" data-view-link="targets">查看全部 <span aria-hidden="true">→</span></button></div>
+                <div class="target-list compact" id="overview-targets"></div>
+                <div class="empty-state compact-empty" id="target-empty" hidden><span class="empty-mark">—</span><strong>暂无目标频道</strong></div>
+                <div class="target-panel-foot"><span class="target-small-dot"></span><span id="target-summary">目标频道清单</span><span class="target-sync">LIVE</span></div>
+              </section>
+            </div>
+
+            <section class="panel table-panel">
+              <div class="panel-heading table-heading"><div><div class="eyebrow">LATEST EVENTS</div><h2>最近活动</h2></div><button class="text-button" type="button" data-view-link="activity">完整记录 <span aria-hidden="true">→</span></button></div>
+              <div class="table-scroll"><table><thead><tr><th>状态</th><th>目标频道</th><th>消息数</th><th>时间</th><th>记录 ID</th></tr></thead><tbody id="overview-activity"></tbody></table></div>
+              <div class="empty-state table-empty" id="activity-empty" hidden><span class="empty-mark">—</span><strong>还没有转发活动</strong></div>
+            </section>
+            <footer class="page-footer"><span>RELAY CONSOLE</span><span>活动数据仅记录状态、目标及消息数量</span></footer>
+          </section>
+
+          <section class="view" id="view-activity" data-view="activity" hidden>
+            <div class="page-heading"><div><div class="eyebrow">MONITORING / 02</div><h1>活动记录</h1></div><div class="heading-date" id="activity-date"></div></div>
+            <section class="panel full-table-panel">
+              <div class="panel-heading table-heading"><div><div class="eyebrow">DELIVERY LOG</div><h2>转发事件</h2></div><div class="segmented" role="group" aria-label="筛选活动状态"><button class="segment active" type="button" data-filter="all">全部</button><button class="segment" type="button" data-filter="success">成功</button><button class="segment" type="button" data-filter="failed">失败</button></div></div>
+              <div class="table-scroll"><table><thead><tr><th>状态</th><th>目标频道</th><th>消息数</th><th>发生时间</th><th>事件编号</th></tr></thead><tbody id="activity-table"></tbody></table></div>
+              <div class="empty-state table-empty" id="full-activity-empty" hidden><span class="empty-mark">—</span><strong>没有匹配的活动记录</strong></div>
+            </section>
+            <footer class="page-footer"><span>最多保留 5,000 条事件</span><span>不存储消息文本或用户身份</span></footer>
+          </section>
+
+          <section class="view" id="view-targets" data-view="targets" hidden>
+            <div class="page-heading"><div><div class="eyebrow">CONFIGURATION / 03</div><h1>频道目标</h1></div><div class="heading-date" id="target-date"></div></div>
+            <div class="target-toolbar"><div><strong id="target-count-label">0 个目标</strong><span>Telegram 发送目的地</span></div><span class="target-readonly"><span class="system-dot"></span>Bot 需已加入目标并有发送权限</span></div>
+            <p class="form-feedback" id="target-feedback" role="alert" hidden></p><form class="target-form" id="target-form">
+              <label>频道 ID 或公开用户名<input name="chat_id" required maxlength="64" placeholder="-1001234567890 或 @channelname"></label>
+              <label>显示名称<input name="title" maxlength="120" placeholder="可选，例如资源频道"></label>
+              <button class="primary-button" type="submit">保存目标</button>
+            </form>
+            <section class="target-grid" id="full-targets"></section>
+            <div class="empty-state large-empty" id="full-target-empty" hidden><span class="empty-mark">—</span><strong>暂无目标频道</strong><span>已添加的频道会显示在这里</span></div>
+            <footer class="page-footer"><span>DESTINATIONS</span><span>目标频道 ID 仅管理员可见</span></footer>
+          </section>
+
+          <section class="view" id="view-manual" data-view="manual" hidden>
+            <div class="page-heading"><div><div class="eyebrow">手动提交 · 专用规则</div><h1>普通转发规则</h1></div><button class="primary-button" id="new-manual-button" type="button">新建普通规则</button></div>
+            <div class="rule-notice"><span>无需来源 ID。选择一条规则后，你转发给机器人的消息会按该规则筛选、处理并发布。规则内账号和目标优先于快捷转发默认设置。保存不会自动选中。</span></div>
+            <div class="manual-toolbar"><strong id="manual-current">正在读取…</strong><button class="secondary-button" id="manual-clear" type="button">切换为快捷转发</button></div>
+            <div class="inline-error" id="manual-error" role="alert" hidden></div>
+            <section class="manual-grid" id="manual-list"></section>
+            <div class="empty-state large-empty" id="manual-empty" hidden><strong>为普通转发创建第一条规则</strong><span>例如：仅发布图片、去除链接、添加频道署名。</span></div>
+          </section>
+          <section class="view" id="view-rules" data-view="rules" hidden>
+            <div class="page-heading"><div><div class="eyebrow">CONFIGURATION / 04</div><h1>自动监听规则</h1></div><button class="primary-button" id="new-rule-button" type="button">新建规则</button></div>
+            <div class="rule-notice"><span class="notice-mark">i</span><span>自动转发用于持续监听来源的新消息。手动转发只需在首页选择账号，再将消息发给机器人。</span></div>
+            <section class="panel rule-table-panel">
+              <div class="table-scroll"><table><thead><tr><th>规则</th><th>来源</th><th>目标</th><th>筛选与处理</th><th>状态</th><th>操作</th></tr></thead><tbody id="rules-table"></tbody></table></div>
+              <div class="empty-state large-empty" id="rules-empty" hidden><span class="empty-mark">—</span><strong>还没有转发规则</strong><span>添加来源、目标和匹配条件，Bot 就会自动处理新消息</span></div>
+            </section>
+            <footer class="page-footer"><span>FORWARDING RULES</span><span>自动规则独立保存发布账号；首页默认账号用于手动转发及新建规则预填</span></footer>
+          </section>
+
+          <dialog class="editor-dialog" id="rule-dialog" aria-labelledby="rule-dialog-title">
+            <form id="rule-form">
+              <div class="dialog-heading"><div><div class="eyebrow">RULE CONFIGURATION</div><h2 id="rule-dialog-title">新建规则</h2></div><button class="icon-button" id="close-rule-dialog" type="button" aria-label="关闭">×</button></div>
+              <input name="rule_id" type="hidden">
+              <div class="form-grid">
+                <label>发布账号<select name="sender_account"><option value="bot">机器人账号</option><option value="user">个人 Telegram 账号</option></select><small>个人账号发送需与用户账号来源配合，并有目标发布权限。</small></label>
+                <label>规则名称<input name="name" required maxlength="80" placeholder="例如：频道图片归档"></label>
+                <label>来源读取方式<select name="source_mode"><option value="bot">Bot API（机器人在来源中）</option><option value="user">用户账号（用户会话）</option></select><small>需要已登录的个人账号能访问来源。</small></label>
+
+                <label>来源频道/群组<input name="source_chat" required maxlength="40" placeholder="-1001234567890"><small id="source-mode-help">Bot 必须能收到此来源的新消息。</small></label>
+                <label>转发目标<select name="target_chat" id="rule-target" required></select></label>
+                <label class="toggle-field"><input name="enabled" type="checkbox" checked><span>启用此规则</span></label>
+              </div>
+              <details class="advanced-settings"><summary>筛选与内容处理 <span>消息类型、关键词、说明、相册与按钮</span></summary>
+              <fieldset class="choice-fieldset"><legend>消息类型</legend><div class="check-grid">
+                <label><input type="checkbox" name="media_types" value="all"><span>全部</span></label>
+                <label><input type="checkbox" name="media_types" value="text"><span>文字</span></label>
+                <label><input type="checkbox" name="media_types" value="photo"><span>图片</span></label>
+                <label><input type="checkbox" name="media_types" value="video"><span>视频</span></label>
+                <label><input type="checkbox" name="media_types" value="document"><span>文件</span></label>
+                <label><input type="checkbox" name="media_types" value="audio"><span>音频</span></label>
+                <label><input type="checkbox" name="media_types" value="animation"><span>动画</span></label>
+                <label><input type="checkbox" name="media_types" value="voice"><span>语音</span></label>
+                <label><input type="checkbox" name="media_types" value="video_note"><span>视频消息</span></label>
+                <label><input type="checkbox" name="media_types" value="sticker"><span>贴纸</span></label>
+              </div></fieldset>
+              <div class="form-grid">
+                <label>包含关键词<textarea name="filter_keywords" rows="3" placeholder="每行一个，命中任一关键词时转发"></textarea><small>留空表示不过滤；检查文字正文和媒体说明。</small></label>
+                <label>排除关键词<textarea name="exclude_keywords" rows="3" placeholder="每行一个，命中任一关键词时跳过"></textarea><small>排除条件优先于包含条件。</small></label>
+                <label>筛选范围<select name="filter_scope"><option value="message">逐条消息</option><option value="album">整个媒体相册</option></select><small>相册模式会按整组内容筛选，命中后发送整组。</small></label>
+                <label>来源展示<select name="sender_mode"><option value="copy">复制内容并隐藏来源</option><option value="forward">保留 Telegram 转发来源</option></select><small>保留来源时不能改写内容或添加按钮。</small></label>
+              </div>
+              <div class="form-grid">
+                <label>媒体说明文字<select name="caption_mode"><option value="keep">保留原说明</option><option value="remove">移除原说明</option><option value="replace">替换为自定义文字</option><option value="prepend">在原说明前添加</option><option value="append">在原说明后添加</option></select><textarea name="caption_text" rows="3" placeholder="替换或添加的说明文字"></textarea><small>只作用于媒体说明。</small></label>
+                <label>删除关键词<textarea name="remove_keywords" rows="3" placeholder="每行一个，从正文和说明中删除"></textarea></label>
+                <label>查找与替换<textarea name="replacements" rows="3" placeholder="每行一组：查找文字 => 替换文字"></textarea></label>
+              </div>
+              <div class="form-grid">
+                <label>添加前缀<textarea name="prefix_text" rows="2" placeholder="可留空"></textarea></label>
+                <label>添加后缀<textarea name="suffix_text" rows="2" placeholder="可留空"></textarea></label>
+                <label class="toggle-field"><input name="remove_links" type="checkbox"><span>移除消息中的链接</span></label>
+                <label>相册处理<select name="album_mode"><option value="individual">逐条发送</option><option value="merge">合并为相册</option></select><small>相册合并支持按规则修改各项说明。</small></label>
+              </div>
+              <div class="form-grid">
+                <label>底部按钮文字<input name="button_text" maxlength="64" placeholder="可留空"></label>
+                <label>底部按钮链接<input name="button_url" type="url" maxlength="2048" placeholder="https://example.com"></label>
+              </div>
+              </details><p class="form-feedback" id="rule-feedback" role="alert" hidden></p><div class="dialog-actions"><button class="secondary-button" id="cancel-rule-dialog" type="button">取消</button><button class="primary-button" type="submit">保存规则</button></div>
+            </form>
+          </dialog>
+
+          <div class="toast" id="toast" role="status" aria-live="polite"></div>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
