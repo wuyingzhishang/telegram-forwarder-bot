@@ -12,10 +12,10 @@ Telegram 命令菜单提供 `/start`、`/botforward`、`/userforward`、`/photo`
 
 ## VPS 一键部署（推荐）
 
-适用于 Ubuntu/Debian VPS。先准备 Bot Token：在 Telegram 联系 `@BotFather`，创建机器人并复制 Token。管理员数字 ID 可通过 Telegram 联系 `@userinfobot` 查询。然后 SSH 登录 VPS，在服务器终端运行（把仓库地址换成 GitHub 页面上的地址）：
+适用于 Ubuntu/Debian VPS。先准备 Bot Token：在 Telegram 联系 `@BotFather`，创建机器人并复制 Token。管理员数字 ID 可通过 Telegram 联系 `@userinfobot` 查询。然后 SSH 登录 VPS，在服务器终端运行：
 
 ```bash
-git clone <项目仓库地址>
+git clone https://github.com/wuyingzhishang/telegram-forwarder-bot.git
 cd telegram-forwarder-bot
 bash deploy.sh
 ```
