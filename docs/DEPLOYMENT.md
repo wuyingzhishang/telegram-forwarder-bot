@@ -30,15 +30,34 @@ CLOUDFLARE_TUNNEL_TOKEN=
 docker compose -f compose.yaml up -d --build
 ```
 
-仪表盘地址为 `http://127.0.0.1:8080`。HTTP Basic 登录由浏览器处理。频道目标和实时转发规则可直接在网页维护；添加目标后，需确认 Bot 已加入该频道并具备发送权限。端口默认只绑定回环地址；不要把 `DASHBOARD_BIND` 改为 `0.0.0.0` 后直接暴露到公网。
+部署向导会依访问方式设置监听地址：方式 1 使用 `0.0.0.0:8080` 供公网直连，方式 2 和 3 只绑定 `127.0.0.1:8080`。HTTP Basic 登录仍启用。添加频道目标后，需确认 Bot 已加入该频道并具备发送权限。
 
 如果通过 HTTPS 域名访问仪表盘，可将完整地址填入 `DASHBOARD_URL`，管理员 `/start` 菜单会显示仪表盘按钮。
 
 ### 使用 Nginx 和 HTTPS 公开访问
 
-以下步骤适用于 Ubuntu/Debian VPS。先在域名 DNS 中将 `A` 记录指向 VPS 的公网 IPv4 地址；如果配置了 `AAAA` 记录，也要确保 VPS 的 IPv6 可用。仪表盘容器继续绑定 `127.0.0.1:8080`，公网只开放 SSH、HTTP 和 HTTPS。
+部署脚本提供三种仪表盘访问方式，默认选择 1：
 
-选择访问方式时：有域名就用本节的 Nginx + HTTPS；暂时没有域名时，建议通过 SSH 隧道访问本机的 `127.0.0.1:8080`。不要把仪表盘以纯 HTTP 直接暴露到公网：登录密码和页面内容会以未加密形式传输。VPS 内临时调试可使用本机 SSH 隧道，无需把 Compose 端口改绑到公网地址。
+1. **公网 IP 直连 HTTP（默认，最简单）**：访问 `http://VPS公网IP:8080`。需要开放 8080，但 HTTP 不加密，登录密码和页面内容可能被截获。仅在你接受此风险时使用，建议只临时使用或限制来源 IP。
+2. **Nginx + HTTPS**：需要域名，适合长期公网访问。容器继续绑定 `127.0.0.1:8080`，只向公网开放 SSH、HTTP 和 HTTPS。
+3. **SSH 隧道**：不需要域名，容器只绑定本机；从自己电脑建立 SSH 隧道后访问。
+
+再次运行 `bash deploy.sh` 可切换选项。手动修改 `.env` 的 `DASHBOARD_BIND` 后，运行 `docker compose -f compose.yaml up -d` 使绑定生效。
+
+### 方式 1：公网 IP 直连
+
+部署脚本选项 1 会把 `DASHBOARD_BIND` 设为 `0.0.0.0`，浏览器直接打开 `http://VPS公网IP:8080`，把地址中的部分替换为实际 VPS IP。UFW 启用时放行 TCP 8080：
+
+```bash
+sudo ufw allow 8080/tcp
+sudo ufw status
+```
+
+还要在云服务商的防火墙/安全组中放行 TCP 8080。若能设置来源 IP 白名单，尽量只允许自己的公网 IP。此方式使用明文 HTTP，公网链路上的登录密码和页面内容没有传输加密；访问不可信网络前，请切换到方式 2 或 3。用户选择此方式表示接受风险。
+
+### 方式 2：Nginx 和 HTTPS 公开访问
+
+以下步骤适用于 Ubuntu/Debian VPS。先在域名 DNS 中将 `A` 记录指向 VPS 的公网 IPv4 地址；如果配置了 `AAAA` 记录，也要确保 VPS 的 IPv6 可用。仪表盘容器继续绑定 `127.0.0.1:8080`。
 
 安装 Nginx 和 Certbot：
 
@@ -110,7 +129,7 @@ sudo nano .env
 docker compose -f compose.yaml up -d
 ```
 
-放行 SSH、HTTP、HTTPS，并删除曾经创建的 8080 公网放行规则：
+放行 SSH、HTTP、HTTPS。若你之前选择过方式 1 并放行了 8080，此时可删除 8080 公网规则，因为 Nginx 通过本机回环访问仪表盘：
 
 ```bash
 sudo ufw allow OpenSSH
@@ -124,10 +143,18 @@ sudo ufw status numbered
 sudo ufw delete <规则编号>
 ```
 
-`Nginx Full` 会放行 TCP 80 和 443。只需要向公网开放这两个 Web 端口以及 SSH 端口（通常是 TCP 22；若 SSH 改过端口，应放行实际 SSH 端口）。Docker Compose 发布的 `127.0.0.1:8080:8080` 继续保持原样，无需也不应改为 `0.0.0.0`。Certbot 自动续期可用以下命令测试：
+`Nginx Full` 会放行 TCP 80 和 443。只需要向公网开放这两个 Web 端口以及 SSH 端口（通常是 TCP 22；若 SSH 改过端口，应放行实际 SSH 端口）。Docker Compose 发布的 `127.0.0.1:8080:8080` 继续保持原样，无需改为 `0.0.0.0`。Certbot 自动续期可用以下命令测试：
 
 ```bash
 sudo certbot renew --dry-run
+```
+
+### 方式 3：SSH 隧道
+
+部署脚本选择选项 3 后，仪表盘只绑定 VPS 本机。无需开放 UFW 或云防火墙的 8080 端口。在自己的电脑执行下列命令，将占位内容替换为 VPS 用户名和 IP；保持终端运行，再打开 `http://127.0.0.1:8080`：
+
+```bash
+ssh -L 8080:127.0.0.1:8080 <VPS用户名>@<VPS公网IP>
 ```
 
 常用运维命令：
